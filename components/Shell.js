@@ -13,8 +13,10 @@ export function Shell({ children }) {
   const router = useRouter();
   const { ready, lines, totals, open, setOpen, toast, setToast } = useCart();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [compact, setCompact] = useState(false);
   const [pop, setPop] = useState(false);
   const seen = useRef(false);
+  const navRef = useRef(null);
 
   const shopOn = pathname.startsWith("/boutique") || pathname.startsWith("/produit") || pathname.startsWith("/commande");
   const nav = [
@@ -30,9 +32,27 @@ export function Shell({ children }) {
   }, [pathname, setOpen]);
 
   useEffect(() => {
+    const query = window.matchMedia("(max-width: 860px)");
+    const apply = () => setCompact(query.matches);
+    apply();
+    query.addEventListener("change", apply);
+    return () => query.removeEventListener("change", apply);
+  }, []);
+
+  useEffect(() => {
+    if (!compact) setMenuOpen(false);
+  }, [compact]);
+
+  useEffect(() => {
     document.body.classList.toggle("nav-open", menuOpen);
     document.body.classList.toggle("locked", menuOpen || open);
   }, [menuOpen, open]);
+
+  useEffect(() => {
+    if (!menuOpen) return undefined;
+    const frame = window.requestAnimationFrame(() => navRef.current?.querySelector("a")?.focus());
+    return () => window.cancelAnimationFrame(frame);
+  }, [menuOpen]);
 
   useEffect(() => {
     function onKey(event) {
@@ -52,6 +72,14 @@ export function Shell({ children }) {
     }
     setPop(true);
   }, [ready, totals.count]);
+
+  function toggleMenu() {
+    setMenuOpen((value) => {
+      const next = !value;
+      if (next) setOpen(false);
+      return next;
+    });
+  }
 
   function onSearch(event) {
     event.preventDefault();
@@ -88,12 +116,40 @@ export function Shell({ children }) {
                 <strong>Style & Beauté</strong>
               </span>
             </Link>
-            <nav className={"nav" + (menuOpen ? " is-open" : "")} id="nav" aria-label="Navigation">
-              {nav.map((item) => (
-                <Link key={item.href} href={item.href} className={item.on ? "is-active" : undefined} aria-current={item.on ? "page" : undefined}>
-                  {item.label}
-                </Link>
-              ))}
+            <nav
+              ref={navRef}
+              id="nav"
+              className={"nav" + (menuOpen ? " is-open" : "")}
+              aria-label="Navigation"
+              aria-hidden={compact && !menuOpen ? true : undefined}
+              inert={compact && !menuOpen ? true : undefined}
+              onClick={(event) => {
+                if (event.target === event.currentTarget) setMenuOpen(false);
+              }}
+            >
+              <div className="nav-sheet">
+                <div className="nav-main">
+                  {nav.map((item) => (
+                    <Link key={item.href} href={item.href} className={item.on ? "is-active" : undefined} aria-current={item.on ? "page" : undefined}>
+                      {item.label}
+                    </Link>
+                  ))}
+                </div>
+                <div className="nav-extra">
+                  <p className="nav-kicker">Les univers</p>
+                  <div className="nav-univers">
+                    {CATEGORIES.map((category) => (
+                      <Link key={category.id} href={"/boutique/" + category.id}>
+                        {category.label}
+                      </Link>
+                    ))}
+                  </div>
+                  <p className="nav-note">
+                    {CONFIG.hours}
+                    <span>{CONFIG.phone}</span>
+                  </p>
+                </div>
+              </div>
             </nav>
             <div className="header-actions">
               <a className="icon-btn" href="/boutique" aria-label="Rechercher" onClick={onSearch}>
@@ -105,6 +161,7 @@ export function Shell({ children }) {
                 aria-label="Ouvrir le panier"
                 onClick={() => {
                   setToast("");
+                  setMenuOpen(false);
                   setOpen(true);
                 }}
               >
@@ -115,11 +172,13 @@ export function Shell({ children }) {
               </button>
               <button
                 type="button"
-                className="nav-toggle"
-                aria-label="Menu"
+                className={"nav-toggle" + (menuOpen ? " is-open" : "")}
+                aria-label={menuOpen ? "Fermer le menu" : "Ouvrir le menu"}
                 aria-expanded={menuOpen}
-                onClick={() => setMenuOpen((value) => !value)}
+                aria-controls="nav"
+                onClick={toggleMenu}
               >
+                <span />
                 <span />
                 <span />
               </button>
